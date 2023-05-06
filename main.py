@@ -1,8 +1,9 @@
 import random
+import copy
 import pygame
 import sys
 # https://shaunlebron.github.io/pacman-mazegen/
-
+# https://blockdmask.tistory.com/570
 
 
 class Pac_man:
@@ -101,10 +102,13 @@ class Map:
         for y in range(self.h):
             for x in range(self.w):
                 if self.can_new_block_fit(x, y):
-                    if self.w - 5 > x and self.h / 2 - 3 < y < self.h / 2 + 3:
+                    if self.w - 5 < x and self.h / 2 - 3 < y < self.h / 2 + 3:
                         continue
                     self.pos_list.append((x, y))
         # print(self.pos_list)
+        # for pos in self.pos_list:
+        #     print(pos)
+
 
         # A connection is a sort of dependency of one tile block on another.
         # If a valid starting position is against another wall, then add this tile
@@ -194,6 +198,7 @@ class Map:
         # choose random valid starting position if none provided
         if x is None or y is None:
             x, y = random.choice(self.pos_list)
+        # print("Choosed %d %d" % (x, y))
 
         # add first block
         self.add_wall_block(x, y)
@@ -266,6 +271,7 @@ class My_game:
         self.m_pacman = Pac_man()
 
         pygame.init()
+        pygame.display.set_icon(pygame.image.load('images/logo.png'))
         pygame.display.set_caption(self.m_title)
 
         self.m_world_size = random.randint(5, 10)
@@ -306,6 +312,7 @@ class My_game:
 
     def make_maze(self):
         self.m_world_size = random.randint(15, 20)
+        self.m_world_size = 15
 
         # w = random.randint(12, 30)
         # h = random.randint(16, 30)
@@ -328,22 +335,106 @@ class My_game:
                 maze[r][c] = '@'
         maze[h//2-2][w-1]='.'
 
-        # for r in maze:
-        #     print(r)
-
         maze = Map(w, h, maze)
 
         while maze.add_wall_obstacle(extend=True):
+            # for line in str(maze).splitlines():
+            #     s = line
+            #     print(s)
             pass
 
-        self.m_maze = []
         # print(maze, type(maze))
+        self.m_maze = []
         for line in str(maze).splitlines():
             s = line
             self.m_maze.append(s + s[::-1])
+        # print(self.m_maze, type(self.m_maze))
+
+        ori_maze = copy.deepcopy(self.m_maze)
+
+        for r in range(len(ori_maze)):
+            for c in range(len(ori_maze[r])):
+                block = ori_maze[r][c]
+                
+                replace = 0
+                if block == '.':
+                    # ┐
+                    if ori_maze[r-1][c] == '|' and ori_maze[r][c-1] == '.' and ori_maze[r+1][c] == '.' and ori_maze[r][c+1] == '|':
+                        replace = 2
+                    # ┌
+                    elif ori_maze[r-1][c] == '|' and ori_maze[r][c-1] == '|' and ori_maze[r+1][c] == '.' and ori_maze[r][c+1] == '.':
+                        replace = 2
+                    # ┘
+                    elif ori_maze[r-1][c] == '.' and ori_maze[r][c-1] == '.' and ori_maze[r+1][c] == '|' and ori_maze[r][c+1] == '|':
+                        replace = 2
+                    # └
+                    elif ori_maze[r-1][c] == '.' and ori_maze[r][c-1] == '|' and ori_maze[r+1][c] == '|' and ori_maze[r][c+1] == '.':
+                        replace = 2
+                    # ├
+                    elif ori_maze[r-1][c] == '.' and ori_maze[r][c-1] == '|' and ori_maze[r+1][c] == '.' and ori_maze[r][c+1] == '.':
+                        replace = 3
+                    # ┬
+                    elif ori_maze[r-1][c] == '|' and ori_maze[r][c-1] == '.' and ori_maze[r+1][c] == '.' and ori_maze[r][c+1] == '.':
+                        replace = 3
+                    # ┤
+                    elif ori_maze[r-1][c] == '.' and ori_maze[r][c-1] == '.' and ori_maze[r+1][c] == '.' and ori_maze[r][c+1] == '|':
+                        replace = 3
+                    # ┴
+                    elif ori_maze[r-1][c] == '.' and ori_maze[r][c-1] == '.' and ori_maze[r+1][c] == '|' and ori_maze[r][c+1] == '.':
+                        replace = 3
+                    # ┼
+                    elif ori_maze[r-1][c] == '.' and ori_maze[r][c-1] == '.' and ori_maze[r+1][c] == '.' and ori_maze[r][c+1] == '.':
+                        replace = 4
+                # if replace > 2 and (self.m_maze[r-1][c] != '*' and self.m_maze[r][c-1] != '*' and self.m_maze[r+1][c] != '*' and self.m_maze[r][c+1] != '*')
+
+                # if replace and (self.m_maze[r-1][c] != '*' and self.m_maze[r][c-1] != '*' and self.m_maze[r+1][c] != '*' and self.m_maze[r][c+1] != '*'):
+                if replace:
+                    self.m_maze[r] = self.m_maze[r][:c] + '*' + self.m_maze[r][c+1:]
 
         # for r in self.m_maze:
-        #     print(r)
+        #     for c in r:
+        #         print(c, end=' ')
+        #     print()
+        # print('================================')
+
+        # iterate through the rows and columns
+        for row in range(len(self.m_maze)):
+            for col in range(len(self.m_maze[row])):
+                # if the current cell is a star
+                if self.m_maze[row][col] == '*':
+                    # check for contiguous stars to the left
+                    left, right = col, col
+                    while left >= 0 and self.m_maze[row][left] == '*':
+                        left -= 1
+                    left += 1
+                    # check for contiguous stars to the right
+                    while right < len(self.m_maze[row]) and self.m_maze[row][right] == '*':
+                        right += 1
+                    right -= 1
+                    # check for contiguous stars above
+                    up, down = row, row
+                    while up >= 0 and self.m_maze[up][col] == '*':
+                        up -= 1
+                    up += 1
+                    # check for contiguous stars below
+                    while down < len(self.m_maze) and self.m_maze[down][col] == '*':
+                        down += 1
+                    down -= 1
+
+                    print("[%d, %d] u:%d d:%d l:%d r:%d" % (row, col, up, down, left, right))
+                    # replace the non-corner stars with dots
+                    for posy in range(up, down+1):
+                        for posx in range(left, right+1):
+                            self.m_maze[posy] = self.m_maze[posy][:posx] + '.' + self.m_maze[posy][posx + 1:]
+
+                    self.m_maze[up] = self.m_maze[up][:left] + '*' + self.m_maze[up][left + 1:]
+                    self.m_maze[up] = self.m_maze[up][:right] + '*' + self.m_maze[up][right + 1:]
+                    self.m_maze[down] = self.m_maze[down][:left] + '*' + self.m_maze[down][left + 1:]
+                    self.m_maze[down] = self.m_maze[down][:right] + '*' + self.m_maze[down][right + 1:]
+        # for r in self.m_maze:
+        #     for c in r:
+        #         print(c, end=' ')
+        #     print()
 
     def key_event(self, ke):
         if ke[pygame.K_LEFT]:
