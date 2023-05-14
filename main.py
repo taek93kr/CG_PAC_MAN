@@ -2,26 +2,146 @@ import random
 import copy
 import pygame
 import sys
+import warnings
 # https://shaunlebron.github.io/pacman-mazegen/
 # https://blockdmask.tistory.com/570
 
+warnings.filterwarnings('ignore', category=Warning)
 
-class Pac_man:
+G_BLOCK_SIZE = 32
+G_WORLD_SIZE_W = random.randint(5, 10)
+G_WORLD_SIZE_H = random.randint(5, 10)
+G_WORLD_SIZE_W = 15
+G_WORLD_SIZE_H = 15
+G_FPS = 60
+
+class Ghost:
+    m_white = [pygame.image.load('images/ghost_white.png'), pygame.image.load('images/ghost_whiter.png')]
+    def __init__(self):
+        self.m_pos = [100, 100]
+        self.m_type = random.randint(1, 5)
+        self.m_direct = 0 # 0:Right 1:Left
+        self.m_img = []
+        self.m_img.append(pygame.image.load('images/ghost%d.png' % self.m_type))
+        self.m_img.append(pygame.image.load('images/ghost%dr.png' % self.m_type))
+        self.m_mode = 0 # 0:strong 1:week 2:dead 3:revival
+        self.m_speed = [1, 1, 3]
+
+    def move(self, maze):
+        # if '|' not in self.blocks_ahead_of(maze, 0, random.randint(0, 1)):
+        #     # self.m_pos[0] += self.m_speed[self.m_mode]
+        #     self.m_pos[0] += 0.1
+        # if '|' not in self.blocks_ahead_of(maze, 1, random.randint(0, 1)):
+        #     # self.m_pos[1] += self.m_speed[self.m_mode]
+        #     self.m_pos[1] += 0.1
+        # pass
+
+        chance = self.m_speed[self.m_mode]
+        while chance:
+            x = round(self.m_pos[0])
+            y = round(self.m_pos[1])
+            d = self.m_speed[self.m_mode] / G_FPS
+
+            # Check direction
+            avail = [0, 0, 0, 0]
+            x_avail = False
+            y_avail = False
+
+            if x > 0 and maze[y][x - 1] != '|':
+                avail[0] = 1
+            if x < G_WORLD_SIZE_W - 1 and maze[y][x + 1] != '|':
+                avail[1] = 1
+            if y > 0 and maze[y - 1][x] != '|':
+                avail[2] = 1
+            if y < G_WORLD_SIZE_H and maze[y + 1][x] != '|':
+                avail[3] = 1
+            x_avail = (avail[0] or avail[1]) and (abs(self.m_pos[0]) - self.m_pos[0] == 0)
+            y_avail = (avail[2] or avail[3]) and (abs(self.m_pos[1]) - self.m_pos[1] == 0)
+
+            axis = random.randint(0, 1)
+            direct = random.randint(0, 1)
+            if x_avail and y_avail:
+                if axis: # x
+                    if direct: # [+]
+                        self.m_pos[0] += d
+                    else:
+                        self.m_pos[0] -= d
+                    if abs(self.m_pos[0] - d) < d:
+                        self.m_pos = int(round(self.m_pos[0]))
+                else:
+                    if direct: # [+]
+                        self.m_pos[1] += d
+                    else:
+                        self.m_pos[1] -= d
+                    if abs(self.m_pos[1] - d) < d:
+                        self.m_pos[0] = int(round(self.m_pos[1]))
+            elif x_avail:
+                if direct: # [+]
+                    self.m_pos[0] += self.m_speed[self.m_mode]
+                else:
+                    self.m_pos[0] -= self.m_speed[self.m_mode]
+                if abs(self.m_pos[0] - d) < d:
+                    self.m_pos = int(round(self.m_pos[0]))
+            elif y_avail:
+                if direct: # [+]
+                    self.m_pos[1] += self.m_speed[self.m_mode]
+                else:
+                    self.m_pos[1] -= self.m_speed[self.m_mode]
+                if abs(self.m_pos[1] - d) < d:
+                    self.m_pos[0] = int(round(self.m_pos[1]))
+            chance -= 1
+    def getpos(self, x, y):
+        if x < 0:
+            x = 0
+        if y < 1:
+            y = 1
+        if x > G_WORLD_SIZE_W - 1:
+            x = G_WORLD_SIZE_W - 1
+        if y > G_WORLD_SIZE_H - 1:
+            y = G_WORLD_SIZE_H - 1
+        return [x, y]
+    def blocks_ahead_of(self, maze, pos, direct):
+        x = self.m_pos[0]
+        y = self.m_pos[1]
+        if pos == 0:
+            if direct:
+                x += self.m_speed[self.m_mode]/10
+            else:
+                x -= self.m_speed[self.m_mode]/10
+        else:
+            if direct:
+                y += self.m_speed[self.m_mode]/10
+            else:
+                y -= self.m_speed[self.m_mode]/10
+
+        ix, iy = int(x) % G_WORLD_SIZE_W, int(y) % G_WORLD_SIZE_H
+        rx, ry = self.getpos(x, y)
+
+        blocks = [maze[iy][ix]]
+        if pos == 0: # X axis
+            if direct == 0: # (-)
+                blocks.append(maze[iy][ix - 1])
+            else:
+                blocks.append(maze[iy][ix + 1])
+        else:
+            if direct == 0: # (-)
+                blocks.append(maze[iy - 1][ix])
+            else:
+                blocks.append(maze[iy + 1][ix])
+
+        return blocks
+
+class Pac_man(Ghost):
     def __init__(self):
         self.m_pos = [100, 100]
         self.m_point = 0
         self.m_life = 0
-        self.m_img = pygame.image.load('images/pacman_o.png')
-
-    def move(self):
-        pass
-
-class Ghost:
-    def __init__(self):
-        self.m_pos = [100, 100]
-
-    def move(self):
-        pass
+        self.m_direct = 0  # 0:Right 1:Left
+        self.m_img = []
+        self.m_img.append(pygame.image.load('images/pacman_o.png'))
+        self.m_img.append(pygame.transform.flip(self.m_img[0], True, False))
+        self.m_mode = 1  # 0:strong 1:week 2:revival
+        self.m_speed = [2, 4]
 
 class Map:
     def __init__(self, w, h, tile):
@@ -263,61 +383,57 @@ class Map:
         return True
 
 class My_game:
-    BLOCK_SIZE = 32
 
     def __init__(self):
         self.m_title = "CG_PAC-MAN"
 
         self.m_pacman = Pac_man()
+        self.m_score = 0
+        self.m_life = 3
+
 
         pygame.init()
         pygame.display.set_icon(pygame.image.load('images/logo.png'))
         pygame.display.set_caption(self.m_title)
 
-        self.m_world_size = random.randint(5, 10)
-        # self.m_screen_w = self.m_world_size * self.BLOCK_SIZE
-        # self.m_screen_h = self.m_world_size * self.BLOCK_SIZE
+        # self.m_screen_w = G_WORLD_SIZE_W * G_BLOCK_SIZE
+        # self.m_screen_h = G_WORLD_SIZE_H * G_BLOCK_SIZE
 
         self.m_screen_w = 1000
         self.m_screen_h = 1000
         self.m_screen = pygame.display.set_mode((self.m_screen_w, self.m_screen_h))
 
         self.make_maze()
-        self.m_screen = pygame.display.set_mode((self.m_world_size*2*self.BLOCK_SIZE, self.m_world_size*2*self.BLOCK_SIZE))
-        self.print_maze()
+        self.m_screen = pygame.display.set_mode((G_WORLD_SIZE_W*2*G_BLOCK_SIZE, G_WORLD_SIZE_H*2*G_BLOCK_SIZE))
 
-    def print_maze(self):
-        char_to_image = {
-            # '.': 'images/dot.png',
-            '.': '',
-            '|': 'images/wall.png',
-            '*': 'images/power.png',
-            '@': 'images/ghost1.png',
-        }
+        # Set Pac-Man Position
+        self.m_pacman.m_pos[0] = 1
+        self.m_pacman.m_pos[1] = G_WORLD_SIZE_H-1
 
-        # for row in self.m_maze:
-        #     print(''.join(row))
-        # for row in self.m_maze:
-        #     for col in row:
-        #         print(col, end=' ')
-        #     print()
+        # Set Ghosts
+        self.m_ghosts = []
+        for r in range(G_WORLD_SIZE_H // 2 - 1, G_WORLD_SIZE_H // 2 + 1):
+            for c in range(G_WORLD_SIZE_W - 3, G_WORLD_SIZE_W):
+                if self.m_maze[r + 1][c] == '@':
+                    tmp = Ghost()
+                    tmp.m_pos[0] = c
+                    tmp.m_pos[1] = r + 1
+                    self.m_ghosts.append(tmp)
 
-        for y, row in enumerate(self.m_maze):
-            for x, block in enumerate(row):
-                image = char_to_image[block]
-                if image:
-                    img = pygame.image.load(char_to_image[block])
-                    self.m_screen.blit(img, (x*self.BLOCK_SIZE, y*self.BLOCK_SIZE))
-        self.m_screen.blit(self.m_pacman.m_img, (self.m_pacman.m_pos[0]*self.BLOCK_SIZE, self.m_pacman.m_pos[1]*self.BLOCK_SIZE))
+                if self.m_maze[r + 1][2 * G_WORLD_SIZE_W - c - 1] == '@':
+                    tmp = Ghost()
+                    tmp.m_pos[0] = 2 * G_WORLD_SIZE_W - c - 1
+                    tmp.m_pos[1] = r + 1
+                    self.m_ghosts.append(tmp)
+
+        print("INIT DONE")
+
 
     def make_maze(self):
-        self.m_world_size = random.randint(15, 20)
-        self.m_world_size = 15
-
         # w = random.randint(12, 30)
         # h = random.randint(16, 30)
-        w = self.m_world_size
-        h = self.m_world_size
+        w = G_WORLD_SIZE_W
+        h = G_WORLD_SIZE_H
         # print(w, h)
         maze = [['.'] * w for i in range(h)]
 
@@ -346,12 +462,20 @@ class My_game:
         # print(maze, type(maze))
         self.m_maze = []
         for line in str(maze).splitlines():
+            tmp = []
             s = line
-            self.m_maze.append(s + s[::-1])
+            for c in s:
+                tmp.append(c)
+            for c in s[::-1]:
+                tmp.append(c)
+            self.m_maze.append(tmp)
+
+            # self.m_maze.append(s + s[::-1])
         # print(self.m_maze, type(self.m_maze))
 
         ori_maze = copy.deepcopy(self.m_maze)
 
+        # Make power
         for r in range(len(ori_maze)):
             for c in range(len(ori_maze[r])):
                 block = ori_maze[r][c]
@@ -389,7 +513,8 @@ class My_game:
 
                 # if replace and (self.m_maze[r-1][c] != '*' and self.m_maze[r][c-1] != '*' and self.m_maze[r+1][c] != '*' and self.m_maze[r][c+1] != '*'):
                 if replace:
-                    self.m_maze[r] = self.m_maze[r][:c] + '*' + self.m_maze[r][c+1:]
+                    self.m_maze[r][c] = '*'
+                    # self.m_maze[r] = self.m_maze[r][:c] + '*' + self.m_maze[r][c+1:]
 
         # for r in self.m_maze:
         #     for c in r:
@@ -397,6 +522,7 @@ class My_game:
         #     print()
         # print('================================')
 
+        # only power at the corner
         # iterate through the rows and columns
         for row in range(len(self.m_maze)):
             for col in range(len(self.m_maze[row])):
@@ -421,20 +547,47 @@ class My_game:
                         down += 1
                     down -= 1
 
-                    print("[%d, %d] u:%d d:%d l:%d r:%d" % (row, col, up, down, left, right))
+                    # print("[%d, %d] u:%d d:%d l:%d r:%d" % (row, col, up, down, left, right))
                     # replace the non-corner stars with dots
                     for posy in range(up, down+1):
                         for posx in range(left, right+1):
-                            self.m_maze[posy] = self.m_maze[posy][:posx] + '.' + self.m_maze[posy][posx + 1:]
+                            self.m_maze[posy][posx] = '.'
+                            # self.m_maze[posy] = self.m_maze[posy][:posx] + '.' + self.m_maze[posy][posx + 1:]
 
-                    self.m_maze[up] = self.m_maze[up][:left] + '*' + self.m_maze[up][left + 1:]
-                    self.m_maze[up] = self.m_maze[up][:right] + '*' + self.m_maze[up][right + 1:]
-                    self.m_maze[down] = self.m_maze[down][:left] + '*' + self.m_maze[down][left + 1:]
-                    self.m_maze[down] = self.m_maze[down][:right] + '*' + self.m_maze[down][right + 1:]
-        # for r in self.m_maze:
-        #     for c in r:
-        #         print(c, end=' ')
-        #     print()
+                    self.m_maze[up][left] = '*'
+                    self.m_maze[up][right] = '*'
+                    self.m_maze[down][left] = '*'
+                    self.m_maze[down][right] = '*'
+                    # self.m_maze[up] = self.m_maze[up][:left] + '*' + self.m_maze[up][left + 1:]
+                    # self.m_maze[up] = self.m_maze[up][:right] + '*' + self.m_maze[up][right + 1:]
+                    # self.m_maze[down] = self.m_maze[down][:left] + '*' + self.m_maze[down][left + 1:]
+                    # self.m_maze[down] = self.m_maze[down][:right] + '*' + self.m_maze[down][right + 1:]
+
+        # Set Ghost randomly
+        while True:
+            cnt_ghost = 0
+            for r in range(h // 2 - 1, h // 2 + 1):
+                for c in range(w - 3, w):
+                    if random.randint(0, 1):
+                        self.m_maze[r + 1][c] = ' '
+                    else:
+                        self.m_maze[r + 1][c] = '@'
+                        cnt_ghost += 1
+                    if random.randint(0, 1):
+                        self.m_maze[r + 1][2 * w - c - 1] = ' '
+                    else:
+                        self.m_maze[r + 1][c] = '@'
+                        cnt_ghost += 1
+            # if cnt_ghost >= 4:
+            if cnt_ghost == 1:
+                break
+
+        self.m_maze[G_WORLD_SIZE_H - 1][1] = ' '
+
+        for r in self.m_maze:
+            for c in r:
+                print(c, end=' ')
+            print()
 
     def key_event(self, ke):
         if ke[pygame.K_LEFT]:
@@ -452,7 +605,7 @@ class My_game:
 
         clock = pygame.time.Clock()
         while True:
-            clock.tick(60)
+            clock.tick(G_FPS)
             # print(clock)
 
             for event in pygame.event.get():
@@ -461,9 +614,79 @@ class My_game:
 
             self.key_event(pygame.key.get_pressed())
 
-            # self.m_screen.fill(black)
-            # pygame.draw.circle(self.m_screen, white, (self.m_pacman.m_pos[0], self.m_pacman.m_pos[1]), 20)
+            self.m_screen.fill(black)
+
+            # Draw player & map
+            self.draw()
+
+            # Move position
+            self.update()
+
+            # 점수와 생명 수 텍스트 그리기
+            font = pygame.font.Font(None, 36)
+            score_text = font.render("Score: " + str(self.m_score), True, white)
+            life_text = font.render("Life: " + str(self.m_life), True, white)
+
+            # 텍스트를 화면의 원하는 위치에 추가
+            self.m_screen.blit(score_text, (10, 5))
+            screen_width = self.m_screen.get_width()
+            text_width = life_text.get_width()
+            text_x = screen_width - text_width - 10  # 우측 여백 10
+
+            self.m_screen.blit(life_text, (text_x, 5 ))
+
             pygame.display.update()
+
+    def update(self):
+        for g in self.m_ghosts:
+            g.move(self.m_maze)
+        # self.m_pacman.move()
+        pass
+
+    def draw(self):
+        char_to_image = {
+            '.': 'images/dot.png',
+            '|': 'images/wall.png',
+            '*': 'images/power.png',
+            # '@': 'images/ghost1.png',
+            '@': '',
+            't': 'images/pacman_c.png',
+            ' ': '',
+        }
+
+        # for row in self.m_maze:
+        #     print(''.join(row))
+        # for row in self.m_maze:
+        #     for col in row:
+        #         print(col, end=' ')
+        #     print()
+
+        # draw map
+        for y, row in enumerate(self.m_maze):
+            for x, block in enumerate(row):
+                image = char_to_image[block]
+                if image:
+                    img = pygame.image.load(char_to_image[block])
+                    self.m_screen.blit(img, (x*G_BLOCK_SIZE, y*G_BLOCK_SIZE))
+
+        # draw pac_man
+        pacman_img = self.m_pacman.m_img[self.m_pacman.m_direct]
+        self.m_screen.blit(pacman_img,
+                           (self.m_pacman.m_pos[0]*G_BLOCK_SIZE,
+                            self.m_pacman.m_pos[1]*G_BLOCK_SIZE)
+                           )
+        pacman_img.get_rect().colliderect
+        # draw ghosts
+        for g in self.m_ghosts:
+            ghost_img = g.m_img[g.m_direct]
+
+            self.m_screen.blit(ghost_img,
+                               (g.m_pos[0]*G_BLOCK_SIZE,
+                                g.m_pos[1]*G_BLOCK_SIZE)
+                               )
+
+
+
 
 if __name__ == '__main__':
     app = My_game()
