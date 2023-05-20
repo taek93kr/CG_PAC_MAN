@@ -1,4 +1,5 @@
 import random
+import math
 import copy
 import pygame
 import sys
@@ -13,19 +14,27 @@ G_WORLD_SIZE_W = random.randint(5, 10)
 G_WORLD_SIZE_H = random.randint(5, 10)
 G_WORLD_SIZE_W = 15
 G_WORLD_SIZE_H = 15
-G_FPS = 60
+G_FPS = 120
 
 class Ghost:
-    m_white = [pygame.image.load('images/ghost_white.png'), pygame.image.load('images/ghost_whiter.png')]
-    def __init__(self):
-        self.m_pos = [100, 100]
+    def __init__(self, x, y):
+        self.m_pos = [x, y]
+        self.m_init_pos = [x, y]
         self.m_type = random.randint(1, 5)
-        self.m_direct = 0 # 0:Right 1:Left
+        self.m_face = 0 # 0:Left 1:Right
+        self.m_out = 0
         self.m_img = []
-        self.m_img.append(pygame.image.load('images/ghost%d.png' % self.m_type))
         self.m_img.append(pygame.image.load('images/ghost%dr.png' % self.m_type))
-        self.m_mode = 0 # 0:strong 1:week 2:dead 3:revival
+        self.m_img.append(pygame.image.load('images/ghost%d.png' % self.m_type))
+        self.m_img.append(pygame.image.load('images/ghost_whiter.png'))
+        self.m_img.append(pygame.image.load('images/ghost_white.png'))
+        self.m_img.append(pygame.image.load('images/ghost%dr.png' % self.m_type))
+        self.m_img.append(pygame.image.load('images/ghost%d.png' % self.m_type))
+
+        self.m_mode = 0 # 0:strong 1:week 2:revival
+        self.m_mode_tick = 0
         self.m_speed = [1, 1, 3]
+        self.m_direction = 0 # 0:l 1:r 2:u :3:d
 
     def move(self, maze):
         # if '|' not in self.blocks_ahead_of(maze, 0, random.randint(0, 1)):
@@ -35,61 +44,190 @@ class Ghost:
         #     # self.m_pos[1] += self.m_speed[self.m_mode]
         #     self.m_pos[1] += 0.1
         # pass
+        if self.m_mode == 2:
+            self.m_mode_tick -= 1
+            if self.m_mode_tick == 0:
+                self.m_mode = 0
+            return
+
+        o_x = self.m_pos[0]
+        o_y = self.m_pos[1]
+
+        wall_list = ['|']
+        if self.m_out:
+            wall_list.append('x')
 
         chance = self.m_speed[self.m_mode]
         while chance:
-            x = round(self.m_pos[0])
-            y = round(self.m_pos[1])
-            d = self.m_speed[self.m_mode] / G_FPS
-
-            # Check direction
-            avail = [0, 0, 0, 0]
             x_avail = False
             y_avail = False
+            # Check direction
+            avail = [0, 0, 0, 0]
+            d = 50  # 1 2 4 5 10 20 50 100
 
-            if x > 0 and maze[y][x - 1] != '|':
-                avail[0] = 1
-            if x < G_WORLD_SIZE_W - 1 and maze[y][x + 1] != '|':
-                avail[1] = 1
-            if y > 0 and maze[y - 1][x] != '|':
+            # 방향 있음 -> 20% 확률로 반대
+            # 방향 없음 -> 50% 확률로 방향 선택
+            if self.m_pos[1] % 100 == 0: # check x_avail
+                if self.m_pos[0] % 100 == 0:
+                    x = int(self.m_pos[0]/100)
+                    y = int(self.m_pos[1]/100)
+                    if x > 1 and not maze[y][x - 1] in wall_list:
+                        avail[0] = 1 # left
+                    if x < G_WORLD_SIZE_W * 2 - 2 and not maze[y][x + 1] in wall_list:
+                        avail[1] = 1 # right
+                else:
+                    avail[0] = 1 # left
+                    avail[1] = 1 # right
+            else:
                 avail[2] = 1
-            if y < G_WORLD_SIZE_H and maze[y + 1][x] != '|':
                 avail[3] = 1
-            x_avail = (avail[0] or avail[1]) and (abs(self.m_pos[0]) - self.m_pos[0] == 0)
-            y_avail = (avail[2] or avail[3]) and (abs(self.m_pos[1]) - self.m_pos[1] == 0)
+            if self.m_pos[0] % 100 == 0: # check y_avail
+                if self.m_pos[1] % 100 == 0:
+                    x = int(self.m_pos[0]/100)
+                    y = int(self.m_pos[1]/100)
+                    if y > 1 and not maze[y - 1][x] in wall_list:
+                        avail[2] = 1 # up
+                    if y < G_WORLD_SIZE_W - 1 and not maze[y + 1][x] in wall_list:
+                        avail[3] = 1 # down
+                else:
+                    avail[2] = 1 # up
+                    avail[3] = 1 # down
+            else:
+                avail[0] = 1
+                avail[1] = 1
+            x_avail = (avail[0] or avail[1])
+            y_avail = (avail[2] or avail[3])
 
             axis = random.randint(0, 1)
             direct = random.randint(0, 1)
-            if x_avail and y_avail:
-                if axis: # x
-                    if direct: # [+]
-                        self.m_pos[0] += d
+            if self.m_pos[0] % 100 == 0 and self.m_pos[1] % 100 == 0:
+                if x_avail and y_avail:
+                    if axis: # x
+                        if avail[0] and avail[1]:
+                            if direct: # [+]
+                                self.m_pos[0] += d
+                                self.m_direction = 1
+                            else:
+                                self.m_pos[0] -= d
+                                self.m_direction = 0
+                        elif avail[0]:
+                            self.m_pos[0] -= d
+                            self.m_direction = 0
+                        else:
+                            self.m_pos[0] += d
+                            self.m_direction = 1
                     else:
+                        if avail[2] and avail[3]:
+                            if direct: # [+]
+                                self.m_pos[1] += d
+                                self.m_direction = 3
+                            else:
+                                self.m_pos[1] -= d
+                                self.m_direction = 2
+                        elif avail[2]:
+                            self.m_pos[1] -= d
+                            self.m_direction = 2
+                        else:
+                            self.m_pos[1] += d
+                            self.m_direction = 3
+                elif x_avail:
+                    if avail[0] and avail[1]:
+                        if direct: # [+]
+                            self.m_pos[0] += d
+                        else:
+                            self.m_pos[0] -= d
+                    elif avail[0]:
                         self.m_pos[0] -= d
-                    if abs(self.m_pos[0] - d) < d:
-                        self.m_pos = int(round(self.m_pos[0]))
-                else:
-                    if direct: # [+]
-                        self.m_pos[1] += d
                     else:
+                        self.m_pos[0] += d
+                elif y_avail:
+                    if avail[2] and avail[3]:
+                        if direct: # [+]
+                            self.m_pos[1] += d
+                        else:
+                            self.m_pos[1] -= d
+                    elif avail[2]:
                         self.m_pos[1] -= d
-                    if abs(self.m_pos[1] - d) < d:
-                        self.m_pos[0] = int(round(self.m_pos[1]))
-            elif x_avail:
-                if direct: # [+]
-                    self.m_pos[0] += self.m_speed[self.m_mode]
+                    else:
+                        self.m_pos[1] += d
+            elif self.m_direction == 0: # left
+                direct = random.randint(1, 100)
+                if direct > 1:
+                    self.m_pos[0] -= d
                 else:
-                    self.m_pos[0] -= self.m_speed[self.m_mode]
-                if abs(self.m_pos[0] - d) < d:
-                    self.m_pos = int(round(self.m_pos[0]))
-            elif y_avail:
-                if direct: # [+]
-                    self.m_pos[1] += self.m_speed[self.m_mode]
+                    self.m_pos[0] += d
+            elif self.m_direction == 1: # right
+                direct = random.randint(1, 100)
+                if direct > 1:
+                    self.m_pos[0] += d
                 else:
-                    self.m_pos[1] -= self.m_speed[self.m_mode]
-                if abs(self.m_pos[1] - d) < d:
-                    self.m_pos[0] = int(round(self.m_pos[1]))
+                    self.m_pos[0] -= d
+            elif self.m_direction == 2: # up
+                direct = random.randint(1, 100)
+                if direct > 1:
+                    self.m_pos[1] -= d
+                else:
+                    self.m_pos[1] += d
+            elif self.m_direction == 3: # down
+                direct = random.randint(1, 100)
+                if direct > 1:
+                    self.m_pos[1] += d
+                else:
+                    self.m_pos[1] -= d
+
+            # axis = random.randint(0, 1)
+            # direct = random.randint(0, 1)
+            # if x_avail and y_avail:
+            #     if axis: # x
+            #         if avail[0] and avail[1]:
+            #             if direct: # [+]
+            #                 self.m_pos[0] += d
+            #             else:
+            #                 self.m_pos[0] -= d
+            #         elif avail[0]:
+            #             self.m_pos[0] -= d
+            #         else:
+            #             self.m_pos[0] += d
+            #     else:
+            #         if avail[2] and avail[3]:
+            #             if direct: # [+]
+            #                 self.m_pos[1] += d
+            #             else:
+            #                 self.m_pos[1] -= d
+            #         elif avail[2]:
+            #             self.m_pos[1] -= d
+            #         else:
+            #             self.m_pos[1] += d
+            # elif x_avail:
+            #     if avail[0] and avail[1]:
+            #         if direct: # [+]
+            #             self.m_pos[0] += d
+            #         else:
+            #             self.m_pos[0] -= d
+            #     elif avail[0]:
+            #         self.m_pos[0] -= d
+            #     else:
+            #         self.m_pos[0] += d
+            # elif y_avail:
+            #     if avail[2] and avail[3]:
+            #         if direct: # [+]
+            #             self.m_pos[1] += d
+            #         else:
+            #             self.m_pos[1] -= d
+            #     elif avail[2]:
+            #         self.m_pos[1] -= d
+            #     else:
+            #         self.m_pos[1] += d
             chance -= 1
+
+
+        if self.m_direction == 0:
+            self.m_face = 0
+        elif self.m_direction == 1:
+            self.m_face = 1
+
+        # print("[%f, %f] -> [%f, %f]" % (o_x, o_y, self.m_pos[0], self.m_pos[1]))
+        # print("[%.2f, %.2f] -> [%.2f, %.2f]" % (o_x/100, o_y/100, self.m_pos[0]/100, self.m_pos[1]/100))
     def getpos(self, x, y):
         if x < 0:
             x = 0
@@ -132,16 +270,18 @@ class Ghost:
         return blocks
 
 class Pac_man(Ghost):
-    def __init__(self):
-        self.m_pos = [100, 100]
-        self.m_point = 0
-        self.m_life = 0
-        self.m_direct = 0  # 0:Right 1:Left
+    def __init__(self, x, y):
+        self.m_pos = [x, y]
+        self.m_init_pos = [x, y]
         self.m_img = []
-        self.m_img.append(pygame.image.load('images/pacman_o.png'))
-        self.m_img.append(pygame.transform.flip(self.m_img[0], True, False))
+        self.m_img.append(pygame.image.load('images/pacman_o_yr.png'))
+        self.m_img.append(pygame.image.load('images/pacman_c_yr.png'))
+        self.m_img.append(pygame.image.load('images/pacman_o_y.png'))
+        self.m_img.append(pygame.image.load('images/pacman_c_y.png'))
         self.m_mode = 1  # 0:strong 1:week 2:revival
+        self.m_mode_tick = 0
         self.m_speed = [2, 4]
+        self.m_direction = 1
 
 class Map:
     def __init__(self, w, h, tile):
@@ -387,9 +527,10 @@ class My_game:
     def __init__(self):
         self.m_title = "CG_PAC-MAN"
 
-        self.m_pacman = Pac_man()
         self.m_score = 0
+        self.m_remain = [0 ,0]
         self.m_life = 3
+        self.m_tick = 0
 
 
         pygame.init()
@@ -406,28 +547,39 @@ class My_game:
         self.make_maze()
         self.m_screen = pygame.display.set_mode((G_WORLD_SIZE_W*2*G_BLOCK_SIZE, G_WORLD_SIZE_H*2*G_BLOCK_SIZE))
 
-        # Set Pac-Man Position
-        self.m_pacman.m_pos[0] = 1
-        self.m_pacman.m_pos[1] = G_WORLD_SIZE_H-1
+        self.m_pacman = Pac_man(1, G_WORLD_SIZE_H-1)
+
+        for r in self.m_maze:
+            for c in r:
+                print(c, end=' ')
+            print()
+
 
         # Set Ghosts
         self.m_ghosts = []
         for r in range(G_WORLD_SIZE_H // 2 - 1, G_WORLD_SIZE_H // 2 + 1):
             for c in range(G_WORLD_SIZE_W - 3, G_WORLD_SIZE_W):
                 if self.m_maze[r + 1][c] == '@':
-                    tmp = Ghost()
-                    tmp.m_pos[0] = c
-                    tmp.m_pos[1] = r + 1
+                    tmp = Ghost(c * 100, (r + 1) * 100)
                     self.m_ghosts.append(tmp)
 
                 if self.m_maze[r + 1][2 * G_WORLD_SIZE_W - c - 1] == '@':
-                    tmp = Ghost()
-                    tmp.m_pos[0] = 2 * G_WORLD_SIZE_W - c - 1
-                    tmp.m_pos[1] = r + 1
+                    tmp = Ghost((2 * G_WORLD_SIZE_W - c - 1) * 100, (r + 1) * 100)
                     self.m_ghosts.append(tmp)
+                self.m_maze[r + 1][c] = 'x'
+                self.m_maze[r + 1][2 * G_WORLD_SIZE_W - c - 1] = 'x'
+        self.m_maze[G_WORLD_SIZE_H//2-1][G_WORLD_SIZE_W-1] = 'x'
+        self.m_maze[G_WORLD_SIZE_H//2-1][G_WORLD_SIZE_W] = 'x'
+
+
+
+        # for r in self.m_maze:
+        #     for c in r:
+        #         print(c, end=' ')
+        #     print()
+
 
         print("INIT DONE")
-
 
     def make_maze(self):
         # w = random.randint(12, 30)
@@ -584,20 +736,46 @@ class My_game:
 
         self.m_maze[G_WORLD_SIZE_H - 1][1] = ' '
 
+        # Count point and power
         for r in self.m_maze:
             for c in r:
-                print(c, end=' ')
-            print()
+                if c == '.':
+                    self.m_remain[0] += 1
+                if c == '*':
+                    self.m_remain[1] += 1
 
     def key_event(self, ke):
+        x = self.m_pacman.m_pos[0]
+        y = self.m_pacman.m_pos[1]
+        d = self.m_pacman.m_direction
         if ke[pygame.K_LEFT]:
-            self.m_pacman.m_pos[0] -= 1
+            x -= 1
+            d = 0
         if ke[pygame.K_RIGHT]:
-            self.m_pacman.m_pos[0] += 1
+            x += 1
+            d = 1
         if ke[pygame.K_UP]:
-            self.m_pacman.m_pos[1] -= 1
+            y -= 1
         if ke[pygame.K_DOWN]:
-            self.m_pacman.m_pos[1] += 1
+            y += 1
+
+        if self.m_maze[y][x] != '|':
+            self.m_pacman.m_pos[0] = x
+            self.m_pacman.m_pos[1] = y
+            self.m_pacman.m_direction = d
+            if self.m_maze[y][x] == '.':
+                self.m_maze[y][x] = ' '
+                self.m_score += 10
+                self.m_remain[0] -= 1
+            if self.m_maze[y][x] == '*':
+                self.m_maze[y][x] = ' '
+                self.m_score += 50
+                self.m_remain[1] -= 1
+                self.m_pacman.m_mode = 0
+                self.m_pacman.m_mode_tick = G_FPS * 10
+
+                for g in self.m_ghosts:
+                    g.m_mode = 1
 
     def run(self):
         white = (255, 255, 255)
@@ -616,11 +794,11 @@ class My_game:
 
             self.m_screen.fill(black)
 
-            # Draw player & map
-            self.draw()
-
             # Move position
             self.update()
+
+            # Draw player & map
+            self.draw()
 
             # 점수와 생명 수 텍스트 그리기
             font = pygame.font.Font(None, 36)
@@ -636,12 +814,60 @@ class My_game:
             self.m_screen.blit(life_text, (text_x, 5 ))
 
             pygame.display.update()
+            if sum(self.m_remain) == 2 or self.m_life < 0 or 1:
+                break
+        self.draw_game_over()
 
     def update(self):
+        self.m_tick += 1
+        self.m_tick %= G_FPS
+
+        if self.m_pacman.m_mode != 1:
+            self.m_pacman.m_mode_tick -= 1
+            if self.m_pacman.m_mode_tick == 0:
+                self.m_pacman.m_mode = 1
+
+
+        # Move ghost
         for g in self.m_ghosts:
             g.move(self.m_maze)
-        # self.m_pacman.move()
-        pass
+
+            if g.m_out == 0 and (g.m_pos[0]/100 < G_WORLD_SIZE_W - 4 or g.m_pos[0]/100 > G_WORLD_SIZE_W + 3 or g.m_pos[1]/100 < G_WORLD_SIZE_H // 2 - 2 or g.m_pos[1]/100 > G_WORLD_SIZE_H // 2 + 2):
+                g.m_out = 1
+
+            # Check collision
+            x1, y1 = map(lambda x : x / 100 * 32, g.m_pos)
+            x2, y2 = map(lambda x : x * 32, self.m_pacman.m_pos)
+            distance = math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
+            print(x1/32, y1/32, x2/32, y2/32, distance)
+            if distance < 2 * 16:
+                if self.m_pacman.m_mode == 0: # pac-man strong -> ghost dead
+                    g.m_mode = 2
+                    g.m_mode_tick = G_FPS * 5
+                    g.m_pos[0] = g.m_init_pos[0]
+                    g.m_pos[1] = g.m_init_pos[1]
+                elif self.m_pacman.m_mode == 1: # pac-man week -> revive
+                    self.m_pacman.m_mode = 2
+                    self.m_pacman.m_mode_tick = G_FPS * 5
+                    self.m_score -= 100
+                    self.m_life -= 1
+                    self.m_pacman.m_pos[0] = self.m_pacman.m_init_pos[0]
+                    self.m_pacman.m_pos[1] = self.m_pacman.m_init_pos[1]
+    def draw_game_over(self):
+        white = (255, 255, 255)
+        black = (0, 0, 0)
+        if sum(self.m_remain) == 2:
+            print("WIN")
+        else:
+            self.m_screen.fill(black)
+            font = pygame.font.Font(None, 72)
+            output_text = font.render("GAME OVER", True, white)
+            text_width = output_text.get_width()
+            screen_w = self.m_screen.get_width()
+            screen_h = self.m_screen.get_height()
+            text_x = screen_w - text_width - 10  # 우측 여백 10
+
+            self.m_screen.blit(output_text, (text_x, screen_h//2))
 
     def draw(self):
         char_to_image = {
@@ -652,6 +878,7 @@ class My_game:
             '@': '',
             't': 'images/pacman_c.png',
             ' ': '',
+            'x': '',
         }
 
         # for row in self.m_maze:
@@ -670,27 +897,46 @@ class My_game:
                     self.m_screen.blit(img, (x*G_BLOCK_SIZE, y*G_BLOCK_SIZE))
 
         # draw pac_man
-        pacman_img = self.m_pacman.m_img[self.m_pacman.m_direct]
+        pacman_img = self.m_pacman.m_img[self.m_pacman.m_direction * 2 + self.m_tick % 2]
+        # pygame.image.load('images/pacman_or.png')
+
+        if self.m_pacman.m_mode == 0:
+            width = pacman_img.get_width()
+            height = pacman_img.get_height()
+
+            for y in range(height):
+                for x in range(width):
+                    color = pacman_img.get_at((x, y))
+                    if color.r == 218 and color.g == 201 and color.b == 0:
+                        new_color = pygame.Color(
+                            random.randint(0, 255),
+                            random.randint(0, 255),
+                            random.randint(0, 255)
+                        )
+
+                        pacman_img.set_at((x, y), new_color)
+
         self.m_screen.blit(pacman_img,
                            (self.m_pacman.m_pos[0]*G_BLOCK_SIZE,
                             self.m_pacman.m_pos[1]*G_BLOCK_SIZE)
                            )
-        pacman_img.get_rect().colliderect
+
         # draw ghosts
         for g in self.m_ghosts:
-            ghost_img = g.m_img[g.m_direct]
+            ghost_img = g.m_img[g.m_mode * 2 + g.m_face]
 
             self.m_screen.blit(ghost_img,
-                               (g.m_pos[0]*G_BLOCK_SIZE,
-                                g.m_pos[1]*G_BLOCK_SIZE)
+                               (g.m_pos[0]/100*G_BLOCK_SIZE,
+                                g.m_pos[1]/100*G_BLOCK_SIZE)
                                )
 
 
 
 
 if __name__ == '__main__':
-    app = My_game()
-    app.run()
+    while True:
+        app = My_game()
+        app.run()
 
 import random
 
